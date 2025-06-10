@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Balloon Game Cloud SE – 字族辨識版（主選單）</title>
+  <!-- 載入 Iansui 字體 -->
+  <link href="https://cdn.jsdelivr.net/gh/max32002/Iansui/Iansui-Regular.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/max32002/Iansui/Iansui-Bold.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/max32002/Iansui/Iansui-Medium.css" rel="stylesheet">
+  <style>
+    * { font-family: 'Iansui', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: linear-gradient(#87CEEB, #ffffff); overflow: hidden; }
+    /* 主選單 */
+    #menu {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(255,255,255,0.9);
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 40px; overflow-y: auto; z-index: 50;
+    }
+    #gameTitle { font-size: 32px; margin-bottom: 20px; }
+    .group-list { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; width: 100%; }
+    .group-btn {
+      width: 150px; height: 60px; background: #4CAF50; color: #fff;
+      border: none; border-radius: 8px; font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: background .2s;
+    }
+    .group-btn:hover { background: #45A049; }
+    /* 遊戲區域 */
+    #gameArea {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: linear-gradient(#87CEEB,#ffffff); z-index: 10;
+    }
+    .balloon {
+      position:absolute; width:80px; height:100px; border-radius:50% 50% 45% 45%;
+      display:flex; align-items:center; justify-content:center; font-size:28px; color:#fff;
+      cursor:pointer; z-index:2;
+    }
+    .balloon::after {
+      content:''; position:absolute; width:2px; height:40px;
+      background:#000; top:100%; left:50%; transform:translateX(-50%);
+    }
+    @keyframes shake { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-10px);} 50%{transform:translateX(10px);} 75%{transform:translateX(-10px);} }
+    .shake { animation:shake .4s ease-in-out; }
+    /* 雲朵目標 */
+    #cloudTarget {
+      position:absolute; top:20px; left:50%; transform:translateX(-50%);
+      width:350px; height:150px;
+      background:url('https://cdn-icons-png.flaticon.com/512/414/414927.png') no-repeat center/contain;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:20;
+    }
+    #cloudTarget span {
+      font-size:64px; font-weight:bold; color:#333;
+      text-shadow:2px 2px 6px rgba(255,255,255,0.8);
+    }
+    #remainNote { font-size:20px; color:#333; }
+    /* 控制面板 */
+    #ui {
+      position:absolute; top:100px; left:10px; z-index:30;
+      background:rgba(255,255,255,0.8); padding:10px; border-radius:10px; color:#333;
+      display:none;
+    }
+    #ui button { margin-top:10px; display:block; width:140px; }
+    /* 提示 / 結束 */
+    #nextLevelBanner {
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center;
+      color:#fff; font-size:48px; z-index:35; display:none;
+    }
+    #summary {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(255,255,255,0.9); padding:20px 30px; border-radius:10px;
+      box-shadow:0 0 20px rgba(0,0,0,0.3); z-index:40; display:none;
+      text-align:center; font-size:20px;
+    }
+  </style>
+</head>
+<body>
+  <audio id="correctAudio" src="shoot2.mp3" preload="auto"></audio>
+  <!-- 主選單 -->
+  <div id="menu">
+    <div id="gameTitle">🎈射氣球遊戲_相似字辨認🔍</div>
+    <div class="group-list" id="groupList"></div>
+  </div>
+  <!-- 遊戲區 -->
+  <div id="gameArea"></div>
+  <!-- 雲朵目標 -->
+  <div id="cloudTarget">
+    <span id="targetBig">？</span>
+    <div id="remainNote">🎯 本關剩餘：-- 題</div>
+  </div>
+  <!-- 控制面板 -->
+  <div id="ui">
+    🎯 目標：<span id="target">—</span><br>
+    ⏳ 倒數：<span id="timer">--</span> 秒<br>
+    🏆 分數：<span id="score">--</span><br>
+    🔢 關卡：<span id="level">--</span><br>
+    📋 剩餘關卡：<span id="remaining">--</span><br>
+    ✅ 正確率：<span id="accuracy">--</span><br>
+    <button id="backToMenuBtn">🔙 回主選單</button>
+  </div>
+  <div id="nextLevelBanner">👏下一關</div>
+  <div id="summary"></div>
+  <script>
+    const allQuestions = [
+    // 01 青字族
+      {group:"01青字族",target:"青",options:["情","請","清","精","靜","睛","猜","晴","蜻"]},
+      {group:"01青字族",target:"情",options:["青","請","清","精","靜","睛","猜","晴","蜻"]},
+      {group:"01青字族",target:"請",options:["青","情","清","精","靜","睛","猜","晴","蜻"]},
+      {group:"01青字族",target:"清",options:["青","情","請","精","靜","睛","猜","晴","蜻"]},
+      {group:"01青字族",target:"精",options:["青","情","請","清","靜","睛","猜","晴","蜻"]},
+      {group:"01青字族",target:"靜",options:["青","情","請","清","精","睛","猜","晴","蜻"]},
+      {group:"01青字族",target:"睛",options:["青","情","請","清","精","靜","猜","晴","蜻"]},
+      {group:"01青字族",target:"猜",options:["青","情","請","清","精","靜","睛","晴","蜻"]},
+      {group:"01青字族",target:"晴",options:["青","情","請","清","精","靜","睛","猜","蜻"]},
+      {group:"01青字族",target:"蜻",options:["青","情","請","清","精","靜","睛","猜","晴"]},
+      // 02 采字族
+      {group:"02采字族",target:"采",options:["菜","彩","採","踩","綵","睬"]},
+      {group:"02采字族",target:"菜",options:["采","彩","採","踩","綵","睬"]},
+      {group:"02采字族",target:"彩",options:["采","菜","採","踩","綵","睬"]},
+      {group:"02采字族",target:"採",options:["采","菜","彩","踩","綵","睬"]},
+      {group:"02采字族",target:"踩",options:["采","菜","彩","採","綵","睬"]},
+      {group:"02采字族",target:"綵",options:["采","菜","彩","採","踩","睬"]},
+      {group:"02采字族",target:"睬",options:["采","菜","彩","採","踩","綵"]},
+      // 03 申字族
+      {group:"03申字族",target:"申",options:["神","伸","紳","呻"]},
+      {group:"03申字族",target:"神",options:["申","伸","紳","呻"]},
+      {group:"03申字族",target:"伸",options:["申","神","紳","呻"]},
+      {group:"03申字族",target:"紳",options:["申","神","伸","呻"]},
+      {group:"03申字族",target:"呻",options:["申","神","伸","紳"]},
+      // 04 加字族
+      {group:"04加字族",target:"加",options:["嘉","架","咖","駕","茄","賀"]},
+      {group:"04加字族",target:"嘉",options:["加","架","咖","駕","茄","賀"]},
+      {group:"04加字族",target:"架",options:["加","嘉","咖","駕","茄","賀"]},
+      {group:"04加字族",target:"咖",options:["加","嘉","架","駕","茄","賀"]},
+      {group:"04加字族",target:"駕",options:["加","嘉","架","咖","茄","賀"]},
+      {group:"04加字族",target:"茄",options:["加","嘉","架","咖","駕","賀"]},
+      {group:"04加字族",target:"賀",options:["加","嘉","架","咖","駕","茄"]},
+      // 05 兆字族
+      {group:"05兆字族",target:"兆",options:["跳","桃","挑","逃","眺"]},
+      {group:"05兆字族",target:"跳",options:["兆","桃","挑","逃","眺"]},
+      {group:"05兆字族",target:"桃",options:["兆","跳","挑","逃","眺"]},
+      {group:"05兆字族",target:"挑",options:["兆","跳","桃","逃","眺"]},
+      {group:"05兆字族",target:"逃",options:["兆","跳","桃","挑","眺"]},
+      {group:"05兆字族",target:"眺",options:["兆","跳","桃","挑","逃"]},
+      // 06 馬字族
+      {group:"06馬字族",target:"馬",options:["媽","嗎","瑪","碼","闖","罵","螞"]},
+      {group:"06馬字族",target:"媽",options:["馬","嗎","瑪","碼","闖","罵","螞"]},
+      {group:"06馬字族",target:"嗎",options:["馬","媽","瑪","碼","闖","罵","螞"]},
+      {group:"06馬字族",target:"瑪",options:["馬","媽","嗎","碼","闖","罵","螞"]},
+      {group:"06馬字族",target:"碼",options:["馬","媽","嗎","瑪","闖","罵","螞"]},
+      {group:"06馬字族",target:"闖",options:["馬","媽","嗎","瑪","碼","罵","螞"]},
+      {group:"06馬字族",target:"罵",options:["馬","媽","嗎","瑪","碼","闖","螞"]},
+      {group:"06馬字族",target:"螞",options:["馬","媽","嗎","瑪","碼","闖","罵"]},
+      // 07 其字族
+      {group:"07其字族",target:"其",options:["期","基","斯","旗","棋","欺"]},
+      {group:"07其字族",target:"期",options:["其","基","斯","旗","棋","欺"]},
+      {group:"07其字族",target:"基",options:["其","期","斯","旗","棋","欺"]},
+      {group:"07其字族",target:"斯",options:["其","期","基","旗","棋","欺"]},
+      {group:"07其字族",target:"旗",options:["其","期","基","斯","棋","欺"]},
+      {group:"07其字族",target:"棋",options:["其","期","基","斯","旗","欺"]},
+      {group:"07其字族",target:"欺",options:["其","期","基","斯","旗","棋"]},
+      // 08 登字族
+      {group:"08登字族",target:"登",options:["證","燈","瞪","澄","橙"]},
+      {group:"08登字族",target:"證",options:["登","燈","瞪","澄","橙"]},
+      {group:"08登字族",target:"燈",options:["登","證","瞪","澄","橙"]},
+      {group:"08登字族",target:"瞪",options:["登","證","燈","澄","橙"]},
+      {group:"08登字族",target:"澄",options:["登","證","燈","瞪","橙"]},
+      {group:"08登字族",target:"橙",options:["登","證","燈","瞪","澄"]},
+      // 09 分字族
+      {group:"09分字族",target:"分",options:["粉","紛","份","扮","頒","氛","貧","芬","盼"]},
+      {group:"09分字族",target:"粉",options:["分","紛","份","扮","頒","氛","貧","芬","盼"]},
+      {group:"09分字族",target:"紛",options:["分","粉","份","扮","頒","氛","貧","芬","盼"]},
+      {group:"09分字族",target:"份",options:["分","粉","紛","扮","頒","氛","貧","芬","盼"]},
+      {group:"09分字族",target:"扮",options:["分","粉","紛","份","頒","氛","貧","芬","盼"]},
+      {group:"09分字族",target:"頒",options:["分","粉","紛","份","扮","氛","貧","芬","盼"]},
+      {group:"09分字族",target:"氛",options:["分","粉","紛","份","扮","頒","貧","芬","盼"]},
+      {group:"09分字族",target:"貧",options:["分","粉","紛","份","扮","頒","氛","芬","盼"]},
+      {group:"09分字族",target:"芬",options:["分","粉","紛","份","扮","頒","氛","貧","盼"]},
+      {group:"09分字族",target:"盼",options:["分","粉","紛","份","扮","頒","氛","貧","芬"]},
+      {group:"09分字族",target:"盆",options:["分","粉","紛","份","扮","頒","氛","貧","芬"]},
+      {group:"09分字族",target:"岔",options:["分","粉","紛","份","扮","頒","氛","貧","芬"]},
+      // 10 肖字族
+      {group:"10肖字族",target:"肖",options:["消","銷","稍","悄","削","屑","霄","哨","梢"]},
+      {group:"10肖字族",target:"消",options:["肖","銷","稍","悄","削","屑","霄","哨","梢"]},
+      {group:"10肖字族",target:"銷",options:["肖","消","稍","悄","削","屑","霄","哨","梢"]},
+      {group:"10肖字族",target:"稍",options:["肖","消","銷","悄","削","屑","霄","哨","梢"]},
+      {group:"10肖字族",target:"悄",options:["肖","消","銷","稍","削","屑","霄","哨","梢"]},
+      {group:"10肖字族",target:"削",options:["肖","消","銷","稍","悄","屑","霄","哨","梢"]},
+      {group:"10肖字族",target:"屑",options:["肖","消","銷","稍","悄","削","霄","哨","梢"]},
+      {group:"10肖字族",target:"霄",options:["肖","消","銷","稍","悄","削","屑","哨","梢"]},
+      {group:"10肖字族",target:"哨",options:["肖","消","銷","稍","悄","削","屑","霄","梢"]},
+      {group:"10肖字族",target:"梢",options:["肖","消","銷","稍","悄","削","屑","霄","哨"]},
+      {group:"10肖字族",target:"峭",options:["肖","消","銷","稍","悄","削","屑","霄","哨"]},
+      // 11 占字族
+      {group:"11占字族",target:"占",options:["點","站","店","貼","黏","沾","拈"]},
+      {group:"11占字族",target:"點",options:["占","站","店","貼","黏","沾","拈"]},
+      {group:"11占字族",target:"站",options:["占","點","店","貼","黏","沾","拈"]},
+      {group:"11占字族",target:"店",options:["占","點","站","貼","黏","沾","拈"]},
+      {group:"11占字族",target:"貼",options:["占","點","站","店","黏","沾","拈"]},
+      {group:"11占字族",target:"黏",options:["占","點","站","店","貼","沾","拈"]},
+      {group:"11占字族",target:"沾",options:["占","點","站","店","貼","黏","拈"]},
+      {group:"11占字族",target:"拈",options:["占","點","站","店","貼","黏","沾"]},
+      // 12 方字族
+      {group:"12方字族",target:"方",options:["放","防","房","訪","芳","彷","仿","妨","紡"]},
+      {group:"12方字族",target:"放",options:["方","防","房","訪","芳","彷","仿","妨","紡"]},
+      {group:"12方字族",target:"防",options:["方","放","房","訪","芳","彷","仿","妨","紡"]},
+      {group:"12方字族",target:"房",options:["方","放","防","訪","芳","彷","仿","妨","紡"]},
+      {group:"12方字族",target:"訪",options:["方","放","防","房","芳","彷","仿","妨","紡"]},
+      {group:"12方字族",target:"紡",options:["方","放","防","房","訪","芳","彷","仿","妨"]},
+      // 13 羊字族
+      {group:"13羊字族",target:"羊",options:["養","義","洋","鮮","氧","翔","祥","詳","羨"]},
+      {group:"13羊字族",target:"養",options:["羊","義","洋","鮮","氧","翔","祥","詳","羨"]},
+      {group:"13羊字族",target:"義",options:["羊","養","洋","鮮","氧","翔","祥","詳","羨"]},
+      {group:"13羊字族",target:"洋",options:["羊","養","義","鮮","氧","翔","祥","詳","羨"]},
+      {group:"13羊字族",target:"鮮",options:["羊","養","義","洋","氧","翔","祥","詳","羨"]},
+      {group:"13羊字族",target:"氧",options:["羊","養","義","洋","鮮","翔","祥","詳","羨"]},
+      {group:"13羊字族",target:"翔",options:["羊","養","義","洋","鮮","氧","祥","詳","羨"]},
+      {group:"13羊字族",target:"祥",options:["羊","養","義","洋","鮮","氧","翔","詳","羨"]},
+      {group:"13羊字族",target:"詳",options:["羊","養","義","洋","鮮","氧","翔","祥","羨"]},
+      {group:"13羊字族",target:"羨",options:["羊","養","義","洋","鮮","氧","翔","祥","詳"]},
+      {group:"13羊字族",target:"癢",options:["羊","養","義","洋","鮮","氧","翔","祥","詳"]},
+      {group:"13羊字族",target:"徉",options:["羊","養","義","洋","鮮","氧","翔","祥","詳"]},
+      // 14 宛字族
+      {group:"14宛字族",target:"宛",options:["碗","婉","腕","蜿","惋"]},
+      {group:"14宛字族",target:"碗",options:["宛","婉","腕","蜿","惋"]},
+      {group:"14宛字族",target:"婉",options:["宛","碗","腕","蜿","惋"]},
+      {group:"14宛字族",target:"腕",options:["宛","碗","婉","蜿","惋"]},
+      {group:"14宛字族",target:"蜿",options:["宛","碗","婉","腕","惋"]},
+      {group:"14宛字族",target:"惋",options:["宛","碗","婉","腕","蜿"]},
+      // 15 果字族
+      {group:"15果字族",target:"果",options:["課","顆","棵","夥","巢","彙","裹","粿","踝"]},
+      {group:"15果字族",target:"課",options:["果","顆","棵","夥","巢","彙","裹","粿","踝"]},
+      {group:"15果字族",target:"顆",options:["果","課","棵","夥","巢","彙","裹","粿","踝"]},
+      {group:"15果字族",target:"棵",options:["果","課","顆","夥","巢","彙","裹","粿","踝"]},
+      {group:"15果字族",target:"夥",options:["果","課","顆","棵","巢","彙","裹","粿","踝"]},
+      {group:"15果字族",target:"巢",options:["果","課","顆","棵","夥","彙","裹","粿","踝"]},
+      {group:"15果字族",target:"彙",options:["果","課","顆","棵","夥","巢","裹","粿","踝"]},
+      {group:"15果字族",target:"裹",options:["果","課","顆","棵","夥","巢","彙","粿","踝"]},
+      {group:"15果字族",target:"粿",options:["果","課","顆","棵","夥","巢","彙","裹","踝"]},
+      {group:"15果字族",target:"踝",options:["果","課","顆","棵","夥","巢","彙","裹","粿"]},
+      // 16 交字族
+      {group:"16交字族",target:"交",options:["校","較","效","咬","郊","跤","狡","皎"]},
+      {group:"16交字族",target:"校",options:["交","較","效","咬","郊","跤","狡","皎"]},
+      {group:"16交字族",target:"較",options:["交","校","效","咬","郊","跤","狡","皎"]},
+      {group:"16交字族",target:"效",options:["交","校","較","咬","郊","跤","狡","皎"]},
+      {group:"16交字族",target:"咬",options:["交","校","較","效","郊","跤","狡","皎"]},
+      {group:"16交字族",target:"郊",options:["交","校","較","效","咬","跤","狡","皎"]},
+      {group:"16交字族",target:"跤",options:["交","校","較","效","咬","郊","狡","皎"]},
+      {group:"16交字族",target:"狡",options:["交","校","較","效","咬","郊","跤","皎"]},
+      {group:"16交字族",target:"皎",options:["交","校","較","效","咬","郊","跤","狡"]},
+      // 17韋字族
+      {group:"17韋字族",target:"韋",options:["衛","圍","偉","違","緯","諱","葦"]},
+      {group:"17韋字族",target:"衛",options:["韋","圍","偉","違","緯","諱","葦"]},
+      {group:"17韋字族",target:"圍",options:["韋","衛","偉","違","緯","諱","葦"]},
+      {group:"17韋字族",target:"偉",options:["韋","衛","圍","違","緯","諱","葦"]},
+      {group:"17韋字族",target:"違",options:["韋","衛","圍","偉","緯","諱","葦"]},
+      {group:"17韋字族",target:"緯",options:["韋","衛","圍","偉","違","諱","葦"]},
+      {group:"17韋字族",target:"諱",options:["韋","衛","圍","偉","違","緯","葦"]},
+      {group:"17韋字族",target:"葦",options:["韋","衛","圍","偉","違","緯","諱"]},
+      // 18包字族
+      {group:"18包字族",target:"包",options:["跑","抱","泡","胞","飽","炮","袍","苞"]},
+      {group:"18包字族",target:"跑",options:["包","抱","泡","胞","飽","炮","袍","苞"]},
+      {group:"18包字族",target:"抱",options:["包","跑","泡","胞","飽","炮","袍","苞"]},
+      {group:"18包字族",target:"泡",options:["包","跑","抱","胞","飽","炮","袍","苞"]},
+      {group:"18包字族",target:"胞",options:["包","跑","抱","泡","飽","炮","袍","苞"]},
+      {group:"18包字族",target:"飽",options:["包","跑","抱","泡","胞","炮","袍","苞"]},
+      {group:"18包字族",target:"炮",options:["包","跑","抱","泡","胞","飽","袍","苞"]},
+      {group:"18包字族",target:"袍",options:["包","跑","抱","泡","胞","飽","炮","苞"]},
+      {group:"18包字族",target:"苞",options:["包","跑","抱","泡","胞","飽","炮","袍"]},
+      // 19皮字族
+      {group:"19皮字族",target:"皮",options:["被","破","波","彼","坡","玻","疲","披","簸"]},
+      {group:"19皮字族",target:"被",options:["皮","破","波","彼","坡","玻","疲","披","簸"]},
+      {group:"19皮字族",target:"破",options:["皮","被","波","彼","坡","玻","疲","披","簸"]},
+      {group:"19皮字族",target:"波",options:["皮","被","破","彼","坡","玻","疲","披","簸"]},
+      {group:"19皮字族",target:"彼",options:["皮","被","破","波","坡","玻","疲","披","簸"]},
+      {group:"19皮字族",target:"坡",options:["皮","被","破","波","彼","玻","疲","披","簸"]},
+      {group:"19皮字族",target:"玻",options:["皮","被","破","波","彼","坡","疲","披","簸"]},
+      {group:"19皮字族",target:"疲",options:["皮","被","破","波","彼","坡","玻","披","簸"]},
+      {group:"19皮字族",target:"披",options:["皮","被","破","波","彼","坡","玻","疲","簸"]},
+      {group:"19皮字族",target:"簸",options:["皮","被","破","波","彼","坡","玻","疲","披"]},
+      // 20圭字族
+      {group:"20圭字族",target:"圭",options:["佳","街","哇","封","鞋","蛙","娃","桂","鮭"]},
+      {group:"20圭字族",target:"佳",options:["圭","街","哇","封","鞋","蛙","娃","桂","鮭"]},
+      {group:"20圭字族",target:"街",options:["圭","佳","哇","封","鞋","蛙","娃","桂","鮭"]},
+      {group:"20圭字族",target:"哇",options:["圭","佳","街","封","鞋","蛙","娃","桂","鮭"]},
+      {group:"20圭字族",target:"封",options:["圭","佳","街","哇","鞋","蛙","娃","桂","鮭"]},
+      {group:"20圭字族",target:"鞋",options:["圭","佳","街","哇","封","蛙","娃","桂","鮭"]},
+      {group:"20圭字族",target:"蛙",options:["圭","佳","街","哇","封","鞋","娃","桂","鮭"]},
+      {group:"20圭字族",target:"娃",options:["圭","佳","街","哇","封","鞋","蛙","桂","鮭"]},
+      {group:"20圭字族",target:"桂",options:["圭","佳","街","哇","封","鞋","蛙","娃","鮭"]},
+      {group:"20圭字族",target:"鮭",options:["圭","佳","街","哇","封","鞋","蛙","娃","桂"]},
+      {group:"20圭字族",target:"窪",options:["圭","佳","街","哇","封","鞋","蛙","娃","桂"]},
+      {group:"20圭字族",target:"畦",options:["圭","佳","街","哇","封","鞋","蛙","娃","桂"]}
+    ];
+
+    const menu = document.getElementById("menu"), groupList = document.getElementById("groupList"),
+          gameArea = document.getElementById("gameArea"), ui = document.getElementById("ui"),
+          backBtn = document.getElementById("backToMenuBtn"), banner = document.getElementById("nextLevelBanner"),
+          summary = document.getElementById("summary"), correctAudio = document.getElementById("correctAudio");
+    let currentQs = [], balloons = [], spawnI, countI;
+    let timeLeft, score, level, totalAns, correctAns, currCorrect;
+    const toPass = 5;
+
+    window.onload = initMenu;
+
+    function initMenu() {
+      groupList.innerHTML = "";
+      const groups = [...new Set(allQuestions.map(q => q.group))];
+      groups.forEach(g => {
+        const btn = document.createElement("button"); btn.className = "group-btn"; btn.textContent = g; btn.onclick = () => startGroup(g); groupList.appendChild(btn);
+      });
+      menu.style.display = "flex"; ui.style.display = "none"; clearAll(); clearBalloons(); summary.style.display = "none"; banner.style.display = "none";
+    }
+
+    function startGroup(g) {
+      currentQs = allQuestions.filter(q => q.group === g);
+      if (!currentQs.length) { alert("此字族沒有題目"); return; }
+      menu.style.display = "none";
+      ui.style.display = "block";
+      backBtn.onclick = initMenu;
+      resetGame(); nextLevel(); startTimer();
+    }
+
+    function resetGame() { clearAll(); clearBalloons(); summary.style.display = "none"; banner.style.display = "none"; timeLeft=60; score=0; level=1; totalAns=0; correctAns=0; currCorrect=0; updateUI(); }
+    function nextLevel() { clearInterval(spawnI); clearInterval(countI); if(level>currentQs.length) return endGame(); const q=currentQs[level-1]; document.getElementById("target").textContent=q.target; document.getElementById("targetBig").textContent=q.target; currCorrect=0; updateUI(); spawnI=setInterval(()=>{const ok=Math.random()<0.35; const txt=ok?q.target:q.options[Math.floor(Math.random()*q.options.length)]; spawnBalloon(txt,q.target); },800);}    
+    function spawnBalloon(txt,ans){ const b=document.createElement("div"); b.className="balloon"; b.textContent=txt; b.style.background="#"+Math.floor(Math.random()*0xFFFFFF).toString(16); b.style.left=Math.random()*(innerWidth-100)+"px"; b.style.top=innerHeight+"px"; gameArea.appendChild(b); balloons.push(b); let y=innerHeight, sp=2+Math.random()*3; (function fly(){y-=sp; if(y<-120) return b.remove(); b.style.top=y+"px"; requestAnimationFrame(fly); })(); b.onclick=()=>{ totalAns++; if(txt===ans){ correctAns++; currCorrect++; score+=10; correctAudio.currentTime=0; correctAudio.play(); b.remove(); if(currCorrect>=toPass){ clearAll(); clearBalloons(); banner.style.display="flex"; setTimeout(()=>{banner.style.display="none"; level++; nextLevel(); startTimer();},1000);} } else{ score-=5; b.classList.add("shake"); setTimeout(()=>b.classList.remove("shake"),400);} updateUI(); }; }
+    function startTimer(){ clearInterval(countI); timeLeft=60; document.getElementById("timer").textContent=timeLeft; countI=setInterval(()=>{timeLeft--; document.getElementById("timer").textContent=timeLeft; if(timeLeft<=0&&currCorrect<toPass){clearAll(); failLevel();}},1000);}    
+    function failLevel(){ clearBalloons(); summary.innerHTML=`<p>本關卡未通過，請重新挑戰😢</p><button onclick="retry()">重新開始</button>`; summary.style.display="block";} function retry(){summary.style.display="none";currCorrect=0;nextLevel();startTimer();}    
+    function endGame(){ clearAll(); clearBalloons(); const acc=totalAns?Math.round(correctAns/totalAns*100):0; summary.innerHTML=`<h2>🎉 遊戲結束！</h2><p>總分：<strong>${score}</strong></p><p>答對：<strong>${correctAns}</strong>／${totalAns}</p><p>正確率：<strong>${acc}%</strong></p><button onclick="initMenu()">返回主選單</button>`; summary.style.display="block";}    
+    function clearAll(){ clearInterval(spawnI); clearInterval(countI);} function clearBalloons(){balloons.forEach(b=>b.remove());balloons=[];} function updateUI(){document.getElementById("score").textContent=score;document.getElementById("level").textContent=level;document.getElementById("remaining").textContent=currentQs.length-level+1;const acc=totalAns?Math.round(correctAns/totalAns*100):0;document.getElementById("accuracy").textContent=acc+"%";document.getElementById("remainNote").textContent=`🎯 本關剩餘：${toPass-currCorrect} 題`;}
+  </script>
+</body>
+</html>
